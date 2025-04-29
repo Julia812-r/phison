@@ -40,13 +40,14 @@ if not st.session_state.logado:
     st.stop()
 
 # ================== CABEÇALHO ==================
-st.markdown('<header><h1>Controle de Alunos - Phison Centro de Treinamento</h1></header>', unsafe_allow_html=True)
+st.markdown('<header><h1>Controle Administrativo - Phison Centro de Treinamento</h1></header>', unsafe_allow_html=True)
 
 # ================== SIDEBAR ==================
 aba = st.sidebar.selectbox("Menu", [
     "Cadastrar Alunos",
     "Lista de Alunos",
-    "Horários",
+    "Mensalidade Alunos",
+    "Horários Alunos",
     "Despesas Mensais",
     "Controle Financeiro Diário",
     "Controle de Carga Horária"
@@ -55,7 +56,7 @@ aba = st.sidebar.selectbox("Menu", [
 # ================== BASES DE DADOS ==================
 if 'alunos' not in st.session_state:
     st.session_state.alunos = pd.DataFrame(columns=[
-        'Nome', 'Email', 'Data de Nascimento', 'Aniversário', 'CPF', 'Telefone', 'Vencimento do Plano'
+        'Nome', 'Email', 'Data de Nascimento', 'Aniversário', 'CPF', 'Telefone', 'Vencimento do Plano', 'Valor Mensalidade', 'Status do Aluno' 
     ])
 
 if 'despesas' not in st.session_state:
@@ -110,6 +111,8 @@ if aba == "Cadastrar Alunos":
             cpf = st.text_input("CPF")
             telefone = st.text_input("Telefone")
             vencimento = st.date_input("Data de Vencimento do Plano")
+            mensalidade = st.text_input("Valor Mensalidade")
+            status = st.selectbox("Status do Aluno", ["ATIVO", "NÃO ATIVO"])
             
             submitted = st.form_submit_button("Adicionar")
             if submitted:
@@ -120,7 +123,9 @@ if aba == "Cadastrar Alunos":
                     'Aniversário': data_nascimento.strftime("%d/%m"),
                     'CPF': cpf,
                     'Telefone': telefone,
-                    'Vencimento do Plano': vencimento.strftime("%d/%m/%Y")
+                    'Vencimento do Plano': vencimento.strftime("%d/%m/%Y"),
+                    'Mensalidade': mensalidade, 
+                    'Status': status
                 }
                 st.session_state.alunos = pd.concat(
                     [st.session_state.alunos, pd.DataFrame([novo_aluno])],
@@ -157,6 +162,8 @@ elif aba == "Lista de Alunos":
             cpf_editado = st.text_input("CPF", value=st.session_state.alunos.loc[aluno_idx, 'CPF'])
             telefone_editado = st.text_input("Telefone", value=st.session_state.alunos.loc[aluno_idx, 'Telefone'])
             vencimento_editado = st.date_input("Vencimento do Plano", value=datetime.strptime(st.session_state.alunos.loc[aluno_idx, 'Vencimento do Plano'], "%d/%m/%Y"))
+            mensalidade_editado = st.text_input("Valor Mensalidade", value=st.session_state.alunos.loc[aluno_idx, 'Valor Mensalidade'])
+            status_editado = st.selectbox("Status", ["ATIVO", "NÃO ATIVO"], index=["ATIVO", "NÃO ATIVO"].index(st.session_state.alunos.loc[aluno_idx, 'Status'])) 
             
             salvar = st.form_submit_button("Salvar Alterações")
             excluir = st.form_submit_button("Excluir Aluno")
@@ -169,7 +176,9 @@ elif aba == "Lista de Alunos":
                     'Aniversário': data_nascimento_editado.strftime("%d/%m"),
                     'CPF': cpf_editado,
                     'Telefone': telefone_editado,
-                    'Vencimento do Plano': vencimento_editado.strftime("%d/%m/%Y")
+                    'Vencimento do Plano': vencimento_editado.strftime("%d/%m/%Y"),
+                    'Valor Mensalidade': mensalidade_editado,
+                    'Status': status_editado  
                 }
                 st.success("Aluno atualizado com sucesso!")
 
@@ -186,7 +195,25 @@ elif aba == "Lista de Alunos":
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-elif aba == "Horários":
+elif aba == "Mensalidade Alunos":
+    st.title("Controle de Mensalidades")
+
+    if "alunos" not in st.session_state or len(st.session_state["alunos"]) == 0:
+        st.warning("Nenhum aluno cadastrado ainda. Vá até a aba 'Cadastro de Alunos' para adicionar.")
+    else:
+        with st.form("form_mensalidade_alunos"):
+            nome_aluno = st.selectbox("Nome do Aluno", st.session_state["alunos"])
+            data_vencimento = st.date_input("Data de Vencimento")
+            data_pagamento = st.date_input("Data de Pagamento")
+            valor_pago = st.number_input("Valor Pago (R$)", min_value=0.0, step=0.01, format="%.2f")
+            forma_pagamento = st.selectbox("Forma de Pagamento", ["Dinheiro", "Pix", "Cartão de Crédito", "Cartão de Débito", "Boleto"])
+            enviar = st.form_submit_button("Salvar")
+
+            if enviar:
+                st.success(f"Mensalidade registrada para {nome_aluno}!")
+                # Aqui você pode salvar os dados onde quiser
+           
+elif aba == "Horários Alunos":
     st.title("Horários de Aula")
     dias = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta"]
     horas = [f"{h:02d}:00" for h in range(5, 22)]
@@ -254,3 +281,75 @@ elif aba == "Controle Financeiro Diário":
     df_mes = st.session_state.financeiro[st.session_state.financeiro['Data'].str.contains(f"/{mes}/{ano}")]
     total_entrada = df_mes[df_mes['Tipo'] == 'Entrada']['Valor'].sum()
     total_saida = df_mes[df_mes['Tipo'] == 'Saída']['Valor'].sum() 
+
+    saldo = total_entrada - total_saida
+
+    st.subheader(f"Resumo Financeiro de {mes}/{ano}")
+    st.write(f"**Total de Entradas:** R$ {total_entrada:.2f}")
+    st.write(f"**Total de Saídas:** R$ {total_saida:.2f}")
+    st.write(f"**Saldo do Mês:** R$ {saldo:.2f}")
+
+    st.subheader(f"Movimentações do mês {mes}/{ano}")
+    st.dataframe(df_mes.sort_values('Data'))
+
+elif aba == "Controle de Carga Horária":
+    st.title("Controle de Carga Horária dos Professores")
+    
+    # Cadastro de Professores
+    with st.expander("Cadastrar Professor"):
+        with st.form("form_professor"):
+            nome_professor = st.text_input("Nome do Professor")
+            cadastrar = st.form_submit_button("Cadastrar Professor")
+            if cadastrar and nome_professor:
+                if "professores" not in st.session_state:
+                    st.session_state.professores = []
+                if nome_professor not in st.session_state.professores:
+                    st.session_state.professores.append(nome_professor)
+                    st.success(f"Professor {nome_professor} cadastrado com sucesso!")
+                else:
+                    st.warning("Professor já cadastrado.")
+
+    # Se não existir, cria um controle de aulas
+    if "carga_horaria" not in st.session_state:
+        st.session_state.carga_horaria = pd.DataFrame(columns=["Professor", "Data", "Aulas"])
+
+    # Filtro de mês
+    mes_carga = st.selectbox("Escolha o mês para registrar as aulas", options=[f"{i:02d}" for i in range(1, 13)], key="mes_carga")
+    ano_carga = datetime.now().year
+
+    # Selecionar professor
+    if "professores" in st.session_state and st.session_state.professores:
+        professor_selecionado = st.selectbox("Selecionar Professor", st.session_state.professores)
+        
+        # Registro de aulas por dia
+        for dia in range(1, 32):
+            data_dia = f"{dia:02d}/{mes_carga}/{ano_carga}"
+            aulas_dadas = st.number_input(f"Aulas no dia {data_dia}", min_value=0, step=1, key=f"{professor_selecionado}_{mes_carga}_{dia}")
+            if aulas_dadas > 0:
+                novo_registro = {
+                    "Professor": professor_selecionado,
+                    "Data": data_dia,
+                    "Aulas": aulas_dadas
+                }
+                st.session_state.carga_horaria = pd.concat([st.session_state.carga_horaria, pd.DataFrame([novo_registro])], ignore_index=True)
+
+        # Filtra e mostra o que foi registrado no mês e professor selecionados
+        carga_prof = st.session_state.carga_horaria
+        carga_filtrada = carga_prof[
+            (carga_prof['Professor'] == professor_selecionado) &
+            (carga_prof['Data'].str.contains(f"/{mes_carga}/{ano_carga}"))
+        ]
+
+        if not carga_filtrada.empty:
+            total_aulas = carga_filtrada['Aulas'].sum()
+            valor_aula = 22.00
+            total_pagamento = total_aulas * valor_aula
+
+            st.subheader(f"Resumo de {professor_selecionado} - {mes_carga}/{ano_carga}")
+            st.write(f"**Total de Aulas:** {total_aulas}")
+            st.write(f"**Valor a Receber (R$22,00/aula):** R$ {total_pagamento:.2f}")
+            st.dataframe(carga_filtrada.sort_values('Data'))
+        else:
+            st.info("Nenhuma aula registrada para este professor neste mês.")
+    else:
+        st.warning("Nenhum professor cadastrado ainda.")
